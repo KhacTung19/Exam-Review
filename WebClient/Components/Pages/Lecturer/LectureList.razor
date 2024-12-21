@@ -1,0 +1,146 @@
+﻿@page "/Lecture/ExamList"
+<h1 style="text-align: center;">List Asigned</h1>
+
+<div class="d-flex justify-content-center">
+    <div class="mt-4">
+        <div class="d-flex align-items-center flex-wrap custom-box mb-4">
+            <MudTextField @bind-Value="request.ExamCode" Label="Exam Code" Variant="Variant.Outlined" Margin="Margin.Dense" Class="me-4 col-7" Clearable></MudTextField>
+            <MudSelect @bind-Value="request.StatusId"
+                       Variant="Variant.Outlined"
+                       Label="Status"
+                       Margin="Margin.Dense"
+                       AnchorOrigin="Origin.BottomCenter"
+                       Clearable
+                       Class="me-4 col-auto">
+                @if (statusList.Count > 0)
+                {
+                    @foreach (var item in statusList)
+                    {
+                        <MudSelectItem T="int?" Value="item.ExamStatusId">@item.StatusContent</MudSelectItem>
+                    }
+                }
+            </MudSelect>
+
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Search" OnClick="GetData">Search</MudButton>
+        </div>
+        <div class="custom-box">
+            <div class="d-flex align-items-center justify-content-between">
+                <div>
+                    <h4>Exam List</h4>
+                </div>
+            </div>
+            <div>
+                <MudTable T=LectureExamResponse Items="ExamList" FixedHeader="true" Height="@(ExamList.Count == 0 ? null : "380px")" Hover="true" HorizontalScrollbar="true">
+                    <HeaderContent>
+                        <MudTh>#</MudTh>
+                        <MudTh>Exam Code</MudTh>
+                        <MudTh>Status</MudTh>
+                        <MudTh>Head of Department</MudTh>
+                        <MudTh>Planning Time </MudTh>
+                        <MudTh>Review Start Date</MudTh>
+                        <MudTh>Review End Date</MudTh>
+                        <MudTh></MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd>@((ExamList.IndexOf(context) + 1))</MudTd>
+                        <MudTd>@context.ExamCode</MudTd>
+                        <MudTd>
+                            <label class="fw-bold" style="color:@(ColorList[context.AssignStatusId.Value])">@context.AssignStatusContent</label>
+                        </MudTd>
+                        <MudTd>@context.HeadDepartmentName</MudTd>
+                        <MudTd>@(context.EstimatedTimeTest.HasValue ? context.EstimatedTimeTest.Value.ToString("HH:mm yyyy-MM-dd") : "N/A")</MudTd>
+                        <MudTd>@(context.StartDate.HasValue ? context.StartDate.Value.ToString("yyyy-MM-dd") : "N/A")</MudTd>
+                        <MudTd>@(context.EndDate.HasValue ? context.EndDate.Value.ToString("yyyy-MM-dd") : "N/A")</MudTd>
+                        <MudTd>
+                            <div class="d-flex align-items-center justify-content-around">
+                                <MudButton StartIcon="@Icons.Material.Filled.AssignmentInd" Color="Color.Primary" Variant="Variant.Filled" OnClick="@(() => GoToDetail(context.ExamId))">Detail</MudButton>
+                            </div>
+                        </MudTd>
+                    </RowTemplate>
+                </MudTable>
+                @if (ExamList.Count == 0)
+                {
+                    <p class="text-center  fs-6 mt-4">No Data</p>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+
+@code {
+    [CascadingParameter]
+    public MainLayout Layout { get; set; }
+
+    public List<LectureExamResponse> ExamList = new List<LectureExamResponse>();
+
+    public List<ExamStatus> statusList = new List<ExamStatus>();
+
+    public ExamSearchRequest request = new();
+
+    private Dictionary<int, string> ColorList = new Dictionary<int, string>
+    {
+        { 1, "#D3D3D3" }, // Unassigned
+        { 2, "#87CEEB" }, // Assigned
+        { 3, "#FFD700" }, // Awaiting Lecturer Confirm
+        { 4, "#6495ED" }, // Reviewing
+        { 5, "#FF4500" }, // Error
+        { 6, "#32CD32" }, // OK
+        { 7, "#006400" }, // Completed
+        { 8, "#DC143C" }  // Discard
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        var isAuthenticated = await CustomAuthStateProvider.IsUserAuthenticated();
+
+        if (isAuthenticated)
+        {
+            var auth = await CustomAuthStateProvider.GetAuthenticationStateAsync();
+            var user = auth.User;
+            var userId = int.TryParse(user.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value, out var id) ? id : 0;
+            var campusId = int.TryParse(user.Claims.FirstOrDefault(c => c.Type == "CampusId")?.Value, out var cId) ? cId : 0;
+
+            request.UserId = userId;
+            request.CampusId = campusId;
+
+            var response = await MenuService.CheckAccess(userId, 5);
+
+            if (!response.IsSuccessful)
+            {
+                NavManager.NavigateTo("/404");
+            }
+            else
+            {
+                await GetData();
+
+                var sList = await this.StatusService.GetStatus();
+                if (sList.IsSuccessful)
+                {
+                    statusList = sList.Items;
+                }
+
+                if (Layout != null)
+                {
+                    Layout.Header = "Exam Assgined List";
+                    Layout.HeaderLink = "/Lecture/ExamList";
+                    Layout.RefreshLayout();
+                }
+            }
+        }
+    }
+
+    private async Task GetData()
+    {
+        var eList = await this.ExamService.GetLectureExamList(request);
+        if (eList.IsSuccessful)
+        {
+            ExamList = eList.Items;
+        }
+    }
+
+    public void GoToDetail(int examId)
+    {
+        NavManager.NavigateTo($"/Lecture/ExamReport/{examId}");
+    }
+}

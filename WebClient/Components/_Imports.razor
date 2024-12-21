@@ -1,0 +1,50 @@
+﻿@using System.Net.Http
+@using System.Net.Http.Json
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.AspNetCore.Components.Routing
+@using Microsoft.AspNetCore.Components.Web
+@using static Microsoft.AspNetCore.Components.Web.RenderMode
+@using Microsoft.AspNetCore.Components.Web.Virtualization
+@using Microsoft.JSInterop
+@using WebClient
+@using WebClient.Common
+@using WebClient.Components
+@using WebClient.IServices
+@using Library.Common
+@using Library.Request
+@using Library.Models
+@using MudBlazor
+@using Microsoft.AspNetCore.Components.Authorization
+@using WebClient.Authentication
+@using System.Security.Claims
+@using WebClient.Components.Layout
+@using Library.Response
+@using Blazored.FluentValidation
+@using Microsoft.AspNetCore.WebUtilities
+
+@inject IConfiguration config
+@inject IJSRuntime JS 
+
+@inject CustomAuthenticationStateProvider CustomAuthStateProvider
+@inject NavigationManager NavManager
+@inject IJSRuntime js
+@inject AuthenticationStateProvider AuthStateProvider
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+@inject SpinnerService SpinnerService
+
+@inject IUserService UserService
+@inject ICampusService CampusService
+@inject IRoleService RoleService
+@inject IMenuService MenuService
+@inject IExamService ExamService
+@inject IStatusService StatusService
+@inject ISendMailService MailService
+@inject ISubjectService SubjectService
+@inject IInstructorAssignmentService AssignmentService
+@inject IReportService ReportService
+@inject IUserHistoryService HistoryService
+@inject ISemesterService SemesterService
+@inject IFacultyService FacultyService
+
+

@@ -1,0 +1,459 @@
+﻿@page "/Lecture/ExamReport/{ExamId:int}"
+
+<div class="container">
+    <div class="custom-box mb-5">
+        <h2>Exam Detail</h2>
+        <div class="split-row justify-content-evenly">
+            <div class="col-4">
+                <div class="split-row mb-4">
+                    <label class="col-4 text-end me-3">Exam Code:</label>
+                    <MudText>@exam.ExamCode</MudText>
+                    </div>
+                    <div class="split-row mb-4">
+                        <label class="col-4 text-end me-3">Subject Name:</label>
+                        <MudText>@($"[{exam.SubjectCode}] {exam.SubjectName}")</MudText>
+                    </div>
+                    <div class="split-row mb-4">
+                        <label class="col-4 text-end me-3">Head of Department:</label>
+                        <MudText>@(exam.HeadDepartmentName ?? "N/A")</MudText>
+                    </div>
+                    <div class="split-row mb-4">
+                        <label class="col-4 text-end me-3">Exam Duration:</label>
+                        <MudText>@exam.ExamDuration</MudText>
+                    </div>
+                </div>
+                <div class="col-6">
+                    <div class="split-row mb-4">
+                        <label class="col-4 text-end me-3">Exam Type:</label>
+                        <MudText>@exam.ExamType</MudText>
+                    </div>
+                    <div class="split-row mb-4">
+                        <label class="col-4 text-end me-3">Start Review Date:</label>
+                        <MudText>@(exam.StartDate.HasValue ? exam.StartDate.Value.ToString("yyyy-MM-dd") : "N/A")</MudText>
+                    </div>
+                    <div class="split-row mb-4">
+                        <label class="col-4 text-end me-3">End Review Date:</label>
+                        <MudText>@(exam.EndDate.HasValue ? exam.EndDate.Value.ToString("yyyy-MM-dd") : "N/A")</MudText>
+                    </div>
+                    @if (exam.AssignStatusId != 3)
+                {
+                    <div class="split-row mb-4">
+                        <label class="col-4 text-end me-3">Planning Time:</label>
+                        <MudText>@(exam.EstimatedTimeTest.HasValue ? exam.EstimatedTimeTest.Value.ToString("yyyy-MM-dd") : "N/A")</MudText>
+                    </div>
+                }
+                else
+                {
+                    <div class="split-row mb-4">
+                        <label class="col-4 text-end me-3">Exam Estimate Date: </label>
+                        <div class="row">
+                            <div class="col-7">
+                                <MudDatePicker Converter="@ConvertDate("dd-MM-yyyy")"
+                                               IsDateDisabledFunc="@((DateTime dt)=>(dt.Date > exam.EndDate?.Date) ||(dt < exam.StartDate?.Date))"
+                                               @bind-Date="exam.EstimatedTimeTest" DateFormat="dd-MM-yyyy" Placeholder="dd-mm-yyyy" Variant="Variant.Outlined"
+                                               Margin="Margin.Dense" Required AnchorOrigin="Origin.BottomLeft"
+                                                Error="_hasErrorDate"
+                                                ErrorText="_errorDate" />
+                             </div>
+                             <div class="col-5">
+                                 <MudTimePicker AmPm="true"
+                                                Time="@exam.EstimatedTimeTest?.TimeOfDay"
+                                                TimeChanged="OnTimeChanged"
+                                                AnchorOrigin="Origin.TopLeft"
+                                                Variant="Variant.Outlined"
+                                                Margin="Margin.Dense"
+                                                AutoClose="false"
+                                                Error="_hasErrorTime"
+                                                ErrorText="_errorTime">
+                                 </MudTimePicker>
+                             </div>
+                         </div>
+                     </div>
+                }
+            </div>
+        </div>
+        @if (exam.AssignStatusId == 3)
+        {
+            <MudTooltip Text="Select a date before saving">
+                <MudButton Class="me-4"
+                           StartIcon="@Icons.Material.Filled.Save"
+                           Color="Color.Primary"
+                           Variant="Variant.Filled"
+                           Disabled="@(!exam.EstimatedTimeTest.HasValue)"
+                           OnClick="SaveAssignDate">
+                    Save
+                </MudButton>
+            </MudTooltip>
+            <MudButton Color="Color.Default"
+                       Variant="Variant.Filled"
+                       OnClick="GoBack">
+                Back
+            </MudButton>
+        }
+    </div>
+    @if (exam.EstimatedTimeTest != null && exam.AssignStatusId != 3)
+    {
+        <div class="custom-box">
+            <h2 class="mb-4">Exam Report Detail</h2>
+            @if (exam.ReportList.Count > 0)
+            {
+                @foreach (var item in exam.ReportList)
+                {
+                    <div class="report-content mb-4 p-4">
+                        <div class="d-flex justify-content-between align-items-center mb-4">
+                            <div class="col-2">
+                                <MudTextField @bind-Value=item.QuestionNumber Label="Question Number" Variant="Variant.Outlined" Margin="Margin.Dense" ReadOnly="@(exam.AssignStatusId != 4)"></MudTextField>
+                            </div>
+                            @if (exam.AssignStatusId == 4)
+                            {
+                                <div class="col-auto">
+                                    <MudIconButton Icon="@Icons.Material.Filled.Delete" OnClick="@(() => RemoveReportRecord(item))" Color="Color.Error" Variant="Variant.Filled"></MudIconButton>
+                                </div>
+                            }
+                        </div>
+                        <div class="d-flex justify-content-between align-items-baseline mb-4">
+                            <div style="width:49%">
+                                <MudTextField @bind-Value=item.ReportContent Label="Issued" Variant="Variant.Outlined" Margin="Margin.Dense" Lines="4" MaxLines="6" ReadOnly="@(exam.AssignStatusId != 4)"></MudTextField>
+                            </div>
+                            <div style="width:49%">
+                                <MudTextField @bind-Value=item.QuestionSolutionDetail Label="Solution" Variant="Variant.Outlined" Margin="Margin.Dense" Lines="4" MaxLines="6" ReadOnly="@(exam.AssignStatusId != 4)"></MudTextField>
+                            </div>
+                        </div>
+                        <div class="mb-4 d-flex align-items-center flex-wrap">
+                            @if (item.ImageList.Count > 0)
+                            {
+                                foreach (var image in item.ImageList)
+                                {
+                                    <div class="img-preview col-auto mb-2 me-2">
+                                        @if (exam.AssignStatusId == 4)
+                                        {
+                                            <div class="close-btn">
+                                                <MudFab StartIcon="@Icons.Material.Filled.Close" Color="Color.Dark" IconSize="Size.Small" Size="Size.Small" OnClick="(()=>RemoveImage(item.ImageList,image))"></MudFab>
+                                            </div>
+                                        }
+                                        <img src="@image.FileData" @onclick="() => OpenImageDialog(image.FileData)" />
+                                    </div>
+                                }
+                            }
+                            @if (exam.AssignStatusId == 4)
+                            {
+                                @* <MudButton StartIcon="@Icons.Material.Filled.Image" Color="Color.Default" Variant="Variant.Filled">Add Image</MudButton> *@
+                                <div class="img-preview border-0 col-auto mb-2" style="width:fit-content;cursor:pointer">
+                                    <MudFileUpload T="IReadOnlyList<IBrowserFile>"
+                                                   Accept=".png, .jpg"
+                                                   FilesChanged="@((file)=> UploadFiles2(file,item))"
+                                                   Fi
+                                                   MaximumFileCount="100"
+                                                   @ondrop="@ClearDragClass"
+                                                   @ondragenter="@SetDragClass"
+                                                   @ondragleave="@ClearDragClass"
+                                                   @ondragend="@ClearDragClass"
+                                                   InputClass="absolute mud-width-full mud-height-full overflow-hidden z-10"
+                                                   InputStyle="opacity:0">
+                                        <ActivatorContent>
+                                            <MudPaper Height="150px"
+                                                      Width="250px"
+                                                      Outlined="true"
+                                                      Class="@_dragClass">
+                                                <div>
+                                                    <MudText Typo="Typo.h6">
+                                                        Click here to upload images
+                                                    </MudText>
+                                                </div>
+                                            </MudPaper>
+                                        </ActivatorContent>
+                                    </MudFileUpload>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+            }
+            @if (exam.AssignStatusId == 4)
+            {
+                <MudButton Class="mb-4" StartIcon="@Icons.Material.Filled.NoteAdd" Color="Color.Success" Variant="Variant.Filled" OnClick="AddReportRecord">Add Report Content</MudButton>
+            }
+            @if (exam.AssignStatusId == 4)
+            {
+                <div class="d-flex">
+                    <MudButton Class="me-4" StartIcon="@Icons.Material.Filled.NoteAdd" Color="Color.Default" Variant="Variant.Outlined" OnClick="@(() => Excute(false))">Save</MudButton>
+                    <MudButton StartIcon="@Icons.Material.Filled.NoteAdd" Color="Color.Primary" Variant="Variant.Filled" OnClick="@(() => Excute(true))">Submit</MudButton>
+                </div>
+            }
+            <div class="report-content mb-4 p-4">
+                <MudTextField @bind-Value="exam.TestTimeInMinute"
+                              Label="Test Time(Minutes)"
+                              Variant="Variant.Outlined"
+                              Margin="Margin.Dense"
+                              Type="Numeric"
+                              Required="true"
+                              Style="width: 150px;"
+                              Placeholder="0" />
+                <MudTextField @bind-Value=exam.Summary Label="Summary" Variant="Variant.Outlined" Margin="Margin.Dense" Lines="4" MaxLines="4" ReadOnly="@(exam.AssignStatusId != 4)"></MudTextField>
+            </div>
+            @if (exam.AssignStatusId == 4)
+            {
+                <div class="d-flex">
+                    <MudButton Class="me-4" StartIcon="@Icons.Material.Filled.NoteAdd" Color="Color.Default" Variant="Variant.Outlined" OnClick="@(() => Excute(false))">Save</MudButton>
+                    <MudButton StartIcon="@Icons.Material.Filled.NoteAdd" Color="Color.Primary" Variant="Variant.Filled" OnClick="@(() => Excute(true))">Submit</MudButton>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+
+@code {
+    [CascadingParameter]
+    public MainLayout Layout { get; set; }
+
+    [Parameter]
+    public int ExamId { get; set; }
+
+    public LectureExamResponse exam = new LectureExamResponse();
+
+    string text = string.Empty;
+
+    private string _errorTime = string.Empty;
+
+    private bool _hasErrorTime = false;
+
+    private string _errorDate = string.Empty;
+
+    private bool _hasErrorDate = false;
+
+    private const string DefaultDragClass = "relative rounded-lg border-2 border-dashed pa-4 mud-width-full mud-height-full d-flex justify-content-center align-items-center text-center";
+    private string _dragClass = DefaultDragClass;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var isAuthenticated = await CustomAuthStateProvider.IsUserAuthenticated();
+
+        if (isAuthenticated)
+        {
+            var resp = await ExamService.GetLectureExamById(ExamId);
+
+            if (resp.IsSuccessful)
+            {
+                exam = resp.Item;
+
+                if (exam.ReportList.Count == 0 && exam.AssignStatusId == 4)
+                {
+                    exam.ReportList.Add(new ReportResponse());
+                }
+            }
+
+            if (Layout != null)
+            {
+                Layout.Header = "Exam Assgined List";
+                Layout.HeaderLink = "/Lecture/ExamList";
+                Layout.SubHeader = "Exam Report Detail";
+                Layout.RefreshLayout();
+            }
+
+        }
+    }
+
+    public void AddReportRecord()
+    {
+        exam.ReportList.Add(new ReportResponse());
+    }
+
+    public void RemoveReportRecord(ReportResponse data)
+    {
+        exam.ReportList.Remove(data);
+    }
+
+    public async Task Excute(bool isSubmit)
+    {
+        exam.ReportList.RemoveAll(report =>
+            !report.QuestionNumber.HasValue &&
+            string.IsNullOrEmpty(report.ReportContent) &&
+            (report.ImageList == null || !report.ImageList.Any()) &&
+            string.IsNullOrEmpty(report.QuestionSolutionDetail)
+        );
+
+        var resp = await this.ReportService.AddEditReport(exam, isSubmit);
+
+        if (resp.IsSuccessful)
+        {
+            if (isSubmit)
+            {
+                if (exam.ReportList.Count > 0)
+                {
+                    var auth = await CustomAuthStateProvider.GetAuthenticationStateAsync();
+                    var user = auth.User;
+                    var email = user.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value!;
+
+                    var mailList = new List<MailUtil>
+                {
+                    new MailUtil{MailTo = exam.HeadDepartmentName}
+                };
+
+                    var mailModel = new MailModel
+                        {
+                            Subject = $"Completed Review : {exam.ExamCode}",
+                            MailList = mailList,
+                            Body = $@"
+                        <p><b>Dear {{0}},</b></p>
+                        <p>We would like to inform you that the review for exam code <b>{exam.ExamCode}</b> has been completed by the lecturer.</p>
+                        <p>For more details, please visit the website at <a href='https://www.examreviewfpt.somee.com'>Exam Review System</a>.</p>
+                        <p>Thank you for your support!</p>
+                        <p><b>From:</b> {email}</p><br>
+                        <p><b>Exam Review System</b></p><br>",
+
+                        };
+
+                    var sendMail = await this.MailService.SendMail(mailModel);
+                }
+            }
+
+            NavManager.NavigateTo("/Lecture/ExamList");
+        }
+    }
+
+    public async Task SaveAssignDate()
+    {
+        if (exam.EstimatedTimeTest == null)
+        {
+            _hasErrorDate = true;
+            _errorDate = "Please select a date.";
+        }
+        else
+        {
+            _hasErrorDate = false;
+            _errorDate = string.Empty;
+        }
+
+        if (exam.EstimatedTimeTest?.TimeOfDay == TimeSpan.Zero)
+        {
+            _hasErrorTime = true;
+            _errorTime = "Please select a time.";
+        }
+        else
+        {
+            _hasErrorTime = false;
+            _errorTime = string.Empty;
+        }
+
+        if (!_hasErrorDate && !_hasErrorTime)
+        {
+            var resp = await this.AssignmentService.SetAssignDate(exam);
+
+            if (resp.IsSuccessful)
+            {
+                var auth = await CustomAuthStateProvider.GetAuthenticationStateAsync();
+                var user = auth.User;
+                var email = user.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value!;
+
+                var mailList = new List<MailUtil>
+                {
+                    new MailUtil{MailTo = exam.HeadDepartmentName}
+                };
+
+                string date = exam.EstimatedTimeTest.Value.ToString("HH:mm yyyy-MM-dd");
+
+                var mailModel = new MailModel
+                    {
+                        Subject = $"Exam Review Schedule - Code {exam.ExamCode}",
+                        MailList = mailList,
+                        Body = $@"
+                    <p><b>Dear {{0}},</b></p>
+                    <p>We would like to inform you that Lecturer {email} has selected a time to conduct the review for exam code <b>{exam.ExamCode}</b>. The review is scheduled to take place at <b>{date}</b>.</p>
+                    <p>For more details, please visit the website at <a href='https://www.examreviewfpt.somee.com'>Exam Review System</a>.</p>
+                    <p>Thank you for your support!</p>
+                    <p><b>From:</b> {email}</p><br>
+                    <p><b>Exam Review System</b></p><br>",
+                    };
+
+                var sendMail = await this.MailService.SendMail(mailModel);
+
+                NavManager.NavigateTo("/Lecture/ExamList");
+            }
+        }
+    }
+
+    MudBlazor.Converter<DateTime?, string> ConvertDate(string format)
+    {
+        return new()
+            {
+                GetFunc = (e) => DateTime.TryParse(e, out DateTime data) ? data : null,
+                SetFunc = (e) => e?.ToString(format) ?? string.Empty
+            };
+    }
+
+    public void GoBack()
+    {
+        NavManager.NavigateTo("/Lecture/ExamList");
+    }
+
+    public void OnTimeChanged(TimeSpan? value)
+    {
+
+        if (exam.EstimatedTimeTest.HasValue)
+        {
+            exam.EstimatedTimeTest = new DateTime(exam.EstimatedTimeTest.Value.Year, exam.EstimatedTimeTest.Value.Month, exam.EstimatedTimeTest.Value.Day,
+                                               value.Value.Hours, value.Value.Minutes, 0);
+
+        }
+    }
+
+    IList<IBrowserFile> files = new List<IBrowserFile>();
+
+    private async Task UploadFiles2(IReadOnlyList<IBrowserFile> file, ReportResponse item)
+    {
+        try
+        {
+            foreach (var data in file)
+            {
+                if (data != null)
+                {
+
+                    using (Stream fileStream = data.OpenReadStream(maxAllowedSize: long.MaxValue))
+                    {
+                        using MemoryStream ms = new();
+                        await fileStream.CopyToAsync(ms);
+
+                        item.ImageList.Add(new FileReponse
+                            {
+                                FileData = $"data:{data.ContentType};base64,{Convert.ToBase64String(ms.ToArray())}"
+                            });
+                    }
+                }
+            }
+        }
+        catch (Exception e)
+        {
+            Snackbar.Add(e.Message, Severity.Error);
+        }
+    }
+
+    public void RemoveImage(List<FileReponse> list, FileReponse item)
+    {
+        list.Remove(item);
+    }
+
+    private void SetDragClass()
+        => _dragClass = $"{DefaultDragClass} mud-border-primary";
+
+    private void ClearDragClass()
+        => _dragClass = DefaultDragClass;
+
+    private async Task OpenImageDialog(string image)
+    {
+        var options = new DialogOptions
+            {
+                CloseOnEscapeKey = true,
+                MaxWidth = MaxWidth.ExtraExtraLarge,
+                BackdropClick = true,
+            };
+
+        var parameters = new DialogParameters<ImageDialog>
+        {
+            { x => x.selectedImage, image },
+        };
+
+        var dialog = await DialogService.ShowAsync<ImageDialog>(string.Empty, parameters, options);
+    }
+}
+

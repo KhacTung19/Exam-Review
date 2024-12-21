@@ -1,0 +1,126 @@
+﻿
+<MudDialog>
+    <DialogContent>
+        <div class="row justify-content-center">
+            <div >
+                <div class="card">
+                    <div class="card-body text-center">
+                        <!-- Profile Picture Update Button -->
+                        <div class="d-flex flex-column align-items-center justify-content-center mb-3">
+                            <img src="https://via.placeholder.com/100" alt="Profile" class="rounded-circle mb-3">
+                            <button class="btn btn-primary" disabled>Update Avatar (Not Available)</button>
+                        </div>
+                        <!-- Profile Information Form -->
+                        <form>
+                            <div class="row mb-3">
+                                <div class="col">
+                                    <MudTextField @bind-Value=@request.UserName Variant="Variant.Outlined" Margin="Margin.Dense" Label="Name" ReadOnly></MudTextField>
+                                </div>
+                                <div class="col">
+                                    <MudTextField @bind-Value=@request.RoleName Variant="Variant.Outlined" Margin="Margin.Dense" Label="Role" ReadOnly></MudTextField>
+                                </div>
+                            </div>
+                            <div class="row mb-3">
+                                <div class="col">
+                                    <MudTextField @bind-Value=@request.Email Variant="Variant.Outlined" Margin="Margin.Dense" Label="Email" AdornmentText="@("@fpt.edu.vn")" Adornment="Adornment.End" ReadOnly></MudTextField>
+                                </div>
+                            </div>
+                            <div class="row mb-3">
+                                <div class="col">
+                                    <MudTextField @bind-Value=@request.CampusName Variant="Variant.Outlined" Margin="Margin.Dense" Label="Campus" ReadOnly></MudTextField>
+                                </div>
+                                <div class="col">
+                                    <MudTextField @bind-Value=@request.Phone Variant="Variant.Outlined" Margin="Margin.Dense" Label="Phone Number" ReadOnly></MudTextField>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+     </DialogContent>
+     <DialogActions>
+         <MudButton Color="Color.Primary" ButtonType="ButtonType.Submit" class="btn btn-block col-4" Variant="Variant.Filled" OnClick=Submit Disabled>
+             @if (_processing)
+            {
+                <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true" />
+                <MudText Class="ms-2">Edit</MudText>
+            }
+            else
+            {
+                <MudText>Edit</MudText>
+            }
+        </MudButton>
+        <MudButton Color="Color.Error" OnClick="Cancel" Class="col-3 btn btn-block" Variant="Variant.Outlined">Cancel</MudButton>
+    </DialogActions>
+</MudDialog>
+
+
+@code {
+    [CascadingParameter]
+    private MudDialogInstance MudDialog { get; set; }
+
+    [Parameter]
+    public int? MainId { get; set; }
+
+    IList<IBrowserFile> files = new List<IBrowserFile>();
+
+    [Parameter]
+    public bool IsView { get; set; }
+
+    public UserRequest request = new UserRequest();
+
+    private bool _processing = false;
+
+    private string ExcuteText { get; set; } = string.Empty;
+
+    private void Submit() => MudDialog.Close(DialogResult.Ok(true));
+
+    private void Cancel() => MudDialog.Cancel();
+
+    public string text { get; set; } = "Text Dummy";
+
+    public DateTime? date { get; set; } = DateTime.Now;
+
+    protected override async Task OnInitializedAsync()
+    {
+        ExcuteText = "Edit";
+
+        var auth = await CustomAuthStateProvider.GetAuthenticationStateAsync();
+        var user = auth.User;
+        var userId = int.TryParse(user.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value, out var id) ? id : 0;
+
+        var resp = await UserService.GetByIdAsync(userId);
+
+        if (resp.IsSuccessful)
+        {
+            request = resp.Item;
+        }
+    }
+
+    public async Task Excute()
+    {
+        if (IsView)
+        {
+            IsView = false;
+            ExcuteText = "Save Change";
+        }
+        else
+        {
+
+        }
+    }
+
+    public async Task Back()
+    {
+        if (IsView)
+        {
+            MudDialog.Cancel();
+        }
+        else
+        {
+            IsView = true;
+            ExcuteText = "Edit";
+        }
+    }
+}

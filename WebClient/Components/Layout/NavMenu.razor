@@ -1,0 +1,48 @@
+﻿<AuthorizeView>
+    <Authorized>
+        <div class="top-row ps-3 navbar navbar-dark">
+            <div class="container-fluid">
+                <a class="navbar-brand" href="/home">Quiz Review</a>
+            </div>
+        </div>
+
+        <input type="checkbox" title="Navigation menu" class="navbar-toggler" />
+
+        <div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()">
+            <nav class="d-flex flex-column h-100">
+                <div class="nav-item px-3">
+                    <NavLink class="nav-link ps-4" href="/Home" Match="NavLinkMatch.Prefix">
+                        <span class="bi bi-house-door-fill-nav-menu" aria-hidden="true"></span> Home
+                    </NavLink>
+                </div>
+                <div class="d-flex flex-grow-1 align-items-end">
+                    <div class="nav-item px-3 w-100">
+                        <NavLink class="nav-link ps-4" @onclick=Logout style="cursor:pointer" Match="NavLinkMatch.Prefix">
+                            <span class="bi bi-box-arrow-in-left-nav-menu" aria-hidden="true"></span> Log out
+                        </NavLink>
+                    </div>
+                </div>
+            </nav>
+        </div>
+    </Authorized>
+</AuthorizeView>
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        var isAuthenticated = await CustomAuthStateProvider.IsUserAuthenticated();
+
+        if (isAuthenticated)
+        {
+            var auth = await CustomAuthStateProvider.GetAuthenticationStateAsync();
+            var user = auth.User;
+            var roleId = int.Parse(user.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Role)?.Value!);
+
+        }
+    }
+
+    public async Task Logout()
+    {
+        NavManager.NavigateTo("/login", true);
+    }
+}

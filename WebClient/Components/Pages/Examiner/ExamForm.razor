@@ -1,0 +1,274 @@
+﻿@page "/Examiner/CreateForm"
+@page "/Admin/CreateForm"
+<h1 style="text-align: center;">Create Exam</h1>
+@inject NavigationManager Navigation
+<div class="d-flex justify-content-center">
+    <EditForm Model="exam" class="border p-4" style="width: 600px;" OnValidSubmit="Excute">
+        <FluentValidationValidator />
+
+        <!-- Exam Code -->
+        <div class="mb-4 row align-items-baseline">
+            <label class="col-4 text-end">Exam Code:</label>
+            <div class="col-8">
+                <MudTextField @bind-Value="exam.ExamCode" Variant="Variant.Outlined" Margin="Margin.Dense"
+                              Placeholder="Enter Exam Code" For="@(() => exam.ExamCode)" />
+            </div>
+        </div>
+
+        <!-- Subject Name -->
+        <div class="mb-4 row align-items-baseline">
+            <label class="col-4 text-end">Subject Name:</label>
+            <div class="col-8">
+                <MudAutocomplete T="int?"
+                                 @bind-Value="exam.SubjectId"
+                                 SearchFunc="Search"
+                                 Variant="Variant.Outlined"
+                                 Label="Subject Code"
+                                 ToStringFunc="@((int? id) => SubjectToString(id))"
+                                 Margin="Margin.Dense"
+                                 AnchorOrigin="Origin.BottomCenter"
+                                 CoerceText="true"
+                                 MaxItems="int.MaxValue"
+                                 Dense
+                                 ErrorText="_errorText" />
+            </div>
+        </div>
+
+  
+        <!-- Exam Duration -->
+     <div class="mb-4 row align-items-baseline">
+            <label class="col-4 text-end">Exam Duration:</label>
+            <div class="col-8">
+                <MudTextField @bind-Value="exam.ExamDuration" Variant="Variant.Outlined" Margin="Margin.Dense"
+                              Placeholder="Enter Duration" For="@(() => exam.ExamDuration)" />
+            </div>
+        </div>
+
+        <!-- Exam Term Duration -->
+         <div class="mb-4 row align-items-baseline">
+            <label class="col-4 text-end">Exam TermDuration:</label>
+            <div class="col-auto">
+                <MudSelect @bind-Value="exam.TermDuration" Variant="Variant.Outlined" Margin="Margin.Dense"
+                           Placeholder="Choose Exam TermDuration" For="@(() => exam.TermDuration)" AnchorOrigin="Origin.BottomCenter">
+
+                    <MudSelectItem T="string" Value="@("Block 10 (10 weeks)")">Block 10 (10 weeks)</MudSelectItem>
+                    <MudSelectItem T="string" Value="@("Block 5 (5 weeks)")">Block 5 (5 weeks)</MudSelectItem>
+                </MudSelect>
+            </div>
+        </div>
+
+        <!-- Exam Type -->
+        <div class="mb-4 row align-items-baseline">
+            <label class="col-4 text-end">Exam Type:</label>
+            <div class="col-auto">
+                <MudSelect @bind-Value="exam.ExamType" Variant="Variant.Outlined" Margin="Margin.Dense"
+                            Placeholder="Choose Exam Type" For="@(() => exam.ExamType)">
+                    <MudSelectItem T="string" Value="@("Other")">Other</MudSelectItem>
+                    <MudSelectItem T="string" Value="@("Listening")">Listening</MudSelectItem>
+                    <MudSelectItem T="string" Value="@("Writing")">Writing</MudSelectItem>
+                    <MudSelectItem T="string" Value="@("Speaking")">Speaking</MudSelectItem>
+                    <MudSelectItem T="string" Value="@("Practice Exam")">Practice Exam</MudSelectItem>
+                </MudSelect>
+            </div>
+        </div>
+        <!-- Semester -->
+        <div class="mb-4 row align-items-baseline">
+            <label class="col-4 text-end">Semester:</label>
+            <div class="col-8">
+                <MudSelect T="int?" @bind-Value="exam.SemesterId" Variant="Variant.Outlined" Margin="Margin.Dense"
+                           Placeholder="Choose Semester" For="@(() => exam.SemesterId)">
+                    @foreach (var item in SemesterList)
+                    {
+                        <MudSelectItem T="int?" Value="@item.SemesterId">@($"[{item.SemesterName}]")</MudSelectItem>
+                    }
+                </MudSelect>
+            </div>
+        </div>
+        <!-- Start Date -->
+         <div class="mb-4 row align-items-baseline">
+            <label class="col-4 text-end">Start Review Date:</label>
+
+            <div class="col-auto">
+                <MudDatePicker IsDateDisabledFunc="@((DateTime dt)=>(dt.Date > EndDate?.Date) ||(dt < DateTime.Now))"
+                               @bind-Date="exam.StartDate" DateFormat="dd-MM-yyyy" Placeholder="dd-mm-yyyy" Variant="Variant.Outlined"
+                               Margin="Margin.Dense" For="@(()=> exam.StartDate)" />
+            </div>
+        </div>
+
+        <!-- End Date -->
+         <div class="mb-4 row align-items-baseline">
+            <label class="col-4 text-end">End Review Date:</label>
+
+            <div class="col-auto">
+                <MudDatePicker IsDateDisabledFunc="@((DateTime dt)=>(dt.Date < StartDate?.Date ))"
+                               @bind-Date="exam.EndDate" DateFormat="dd-MM-yyyy" Placeholder="dd-mm-yyyy" Variant="Variant.Outlined"
+                               Margin="Margin.Dense" For="@(()=> exam.EndDate)" />
+            </div>
+        </div>
+
+        <!-- Buttons -->
+        <div class="d-flex justify-content-between">
+            <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary" Disabled="@_processing">
+                @if (_processing)
+                {
+                    <MudProgressCircular Size="Size.Small" Indeterminate="true" />
+                    <MudText>Saving</MudText>
+                }
+                else
+                {
+                    <MudText>Save</MudText>
+                }
+            </MudButton>
+            <MudButton Variant="Variant.Outlined" Color="Color.Error" OnClick="Cancel">Cancel</MudButton>
+        </div>
+    </EditForm>
+    </div>
+
+
+@code {
+    [CascadingParameter]
+    public MainLayout Layout { get; set; }
+    private bool _processing = false;
+    private ExamCreateRequest exam = new ExamCreateRequest();
+    private List<Campus> camList = new();
+    private List<SubjectResponse> subList = new();
+    private bool isAdmin { get; set; } = false;
+    private List<Semester> SemesterList = new List<Semester>();
+
+    [Parameter]
+    public EventCallback<DateTime> DateChanged { get; set; }
+
+    EditForm _refForm;
+
+    private DateTime? StartDate
+    {
+        get => exam.StartDate;
+        set
+        {
+            if (value is not null)
+            {
+                exam.StartDate = value;
+                DateChanged.InvokeAsync(exam.StartDate ?? DateTime.MinValue);
+            }
+        }
+    }
+    private DateTime? EndDate
+    {
+        get => exam.EndDate;
+        set
+        {
+            if (value is not null)
+            {
+                exam.EndDate = value;
+                DateChanged.InvokeAsync(exam.EndDate ?? DateTime.MinValue);
+            }
+        }
+    }
+
+    private Task<IEnumerable<int?>> Search(string value, CancellationToken token)
+    {
+        if (string.IsNullOrEmpty(value))
+        {
+            return Task.FromResult(subList.Select(x => (int?)x.SubjectId).AsEnumerable());
+        }
+
+        return Task.FromResult(
+            subList.Where(x => ($"[{x.SubjectCode}] {x.SubjectName}")
+                .Contains(value, StringComparison.InvariantCultureIgnoreCase))
+             .Select(x => (int?)x.SubjectId) 
+        );
+    }
+
+    private string SubjectToString(int? id)
+    {
+        var subject = subList.FirstOrDefault(x => x.SubjectId == id);
+        return subject != null ? $"[{subject.SubjectCode}] {subject.SubjectName}" : string.Empty;
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var isAuthenticated = await CustomAuthStateProvider.IsUserAuthenticated();
+
+        if (isAuthenticated)
+        {
+            var auth = await CustomAuthStateProvider.GetAuthenticationStateAsync();
+            var user = auth.User;
+            var userId = int.TryParse(user.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value, out var id) ? id : 0;
+            var cam = await UserService.GetByIdAsync(userId);
+            var response = await MenuService.CheckAccess(userId, 3);
+            var response2 = await MenuService.CheckAccess(userId, 21);
+            if (!response.IsSuccessful&& !response2.IsSuccessful)
+            {
+                NavManager.NavigateTo("/404");
+            }
+            else
+            {
+                var resp = await SubjectService.GetSubjects();
+                if (resp.IsSuccessful) subList = resp.Items;
+                var sem = await SemesterService.GetSemester();
+                if (cam.Item != null && cam.Item.RoleId==1)
+                {
+                    isAdmin = true;
+                }
+                if (sem.IsSuccessful)
+                {
+                    SemesterList = sem.Items;
+                }
+
+                var result = await CampusService.GetCampus();
+                if (result.IsSuccessful) camList = result.Items;
+
+                if (Layout != null)
+                {
+                    Layout.Header = "Home";
+                    Layout.HeaderLink = "/Home";
+                    Layout.SubHeader = "Create Exam";
+                    Layout.RefreshLayout();
+                }
+            }
+        }
+    }
+
+    private async Task Excute()
+    {
+        _processing = true;
+
+        var auth = await CustomAuthStateProvider.GetAuthenticationStateAsync();
+        if (auth.User.Identity.IsAuthenticated)
+        {
+            var userId = int.TryParse(auth.User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value, out var id) ? id : 0;
+            exam.CreaterId = userId;
+            var cam = await UserService.GetByIdAsync(userId);
+            if (cam.IsSuccessful)
+            {
+                if (cam.Item != null)
+                {
+                    exam.CampusId = cam.Item.CampusId;
+                }
+            }
+            var resp = await ExamService.CreateExam(exam);
+
+            if (resp.IsSuccessful && !isAdmin)
+            { Navigation.NavigateTo("/Examiner/ExamList"); 
+            }
+            else{
+                Navigation.NavigateTo("/Admin/ExamList");
+            }
+        }
+
+        _processing = false;
+    }
+
+    MudBlazor.Converter<DateTime?, string> ConvertDate(string format)
+    {
+        return new()
+            {
+                GetFunc = (e) => DateTime.TryParse(e, out DateTime data) ? data : null,
+                SetFunc = (e) => e?.ToString(format) ?? string.Empty
+            };
+    }
+    private void Cancel()
+    {
+            NavManager.NavigateTo("/Examiner/CreateExam");
+    }
+}

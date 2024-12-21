@@ -1,0 +1,134 @@
+﻿@page "/Admin/UserActivityLog"
+<h1 style="text-align: center;">User Activity Log</h1>
+<style>
+    .mud-table-cell {
+        border: none !important;
+        text-align: center;
+    }
+
+    .mud-table-head .mud-table-row .mud-table-cell {
+        border-bottom: 1px solid grey !important;
+        font-size: 1.2rem;
+    }
+
+    .mud-table {
+        box-shadow: none !important;
+    }
+
+    .mud-table-root {
+        border-collapse: separate !important;
+        border-spacing: 0 !important;
+    }
+
+    .mud-table-head .mud-table-row {
+        box-shadow: 0 5px 10px #e1e5ee;
+        position: sticky;
+        top: 0;
+        background-color: white;
+        z-index: 99;
+    }
+</style>
+
+<div class="container mt-4">
+    <div class="custom-box mb-4">
+        <div class="d-flex align-items-center flex-wrap justify-content-between">
+            <MudTextField @bind-Value="req.Mail" Label="Mail" Variant="Variant.Outlined" Margin="Margin.Dense" Class="me-4"></MudTextField>
+
+            <MudDatePicker Label="From" Converter="@ConvertDate("yyyy-MM-dd",DateTime.Now.Date)"
+                           IsDateDisabledFunc="@((DateTime dt)=>(dt.Date > req.EndDate?.Date) ||(dt > DateTime.Now))" @bind-Date="req.StartDate"
+                           DateFormat="yyyy-MM-dd" Variant="Variant.Outlined" AnchorOrigin="Origin.BottomLeft"
+                           Margin="Margin.Dense" Clearable />
+            <h3 class="pl-3">~</h3>
+            <MudDatePicker Label="To" Converter="@ConvertDate("yyyy-MM-dd",DateTime.Now.Date)"
+                           IsDateDisabledFunc="@((DateTime dt)=>(dt.Date < req.StartDate )||( dt.Date > DateTime.Now.Date))"
+                           @bind-Date="req.EndDate" DateFormat="yyyy-MM-dd" AnchorOrigin="Origin.BottomLeft"
+                           Variant="Variant.Outlined" Margin="Margin.Dense" Clearable Class="ms-4 me-4" />
+
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="GetLog">Search</MudButton>
+        </div>
+    </div>
+
+    <div class="custom-box ">
+        <h4>History List</h4>
+        <div>
+            @if (LogList.Count > 0)
+            {
+                <MudTable Items="@LogList" FixedHeader="true" Height="400px" Hover="true">
+                    <HeaderContent>
+                        <MudTh>User</MudTh>
+                        <MudTh>Log Content</MudTh>
+                        <MudTh>Time</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd>@context.Mail</MudTd>
+                        <MudTd>@context.LogContent</MudTd>
+                        <MudTd>@context.LogDt</MudTd>
+                    </RowTemplate>
+                </MudTable>
+            }
+            else
+            {
+                <p>No Data</p>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    [CascadingParameter] public MainLayout Layout { get; set; }
+
+    public List<LogResponse> LogList = new List<LogResponse>();
+
+    public LogRequest req = new LogRequest();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var isAuthenticated = await CustomAuthStateProvider.IsUserAuthenticated();
+
+        if (isAuthenticated)
+        {
+            var auth = await CustomAuthStateProvider.GetAuthenticationStateAsync();
+            var user = auth.User;
+            var userId = int.TryParse(user.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value, out var id) ? id : 0;
+
+            var response = await MenuService.CheckAccess(userId, 2);
+
+            if (!response.IsSuccessful)
+            {
+                NavManager.NavigateTo("/404");
+            }
+            else
+            {
+                await GetLog();
+
+                if (Layout != null)
+                {
+                    Layout.Header = "Home";
+                    Layout.HeaderLink = "/Home";
+                    Layout.SubHeader = "User Activity Log";
+                    Layout.RefreshLayout();
+                }
+
+            }
+        }
+    }
+
+    public async Task GetLog()
+    {
+        var resp = await HistoryService.GetLog(req);
+
+        if (resp.IsSuccessful)
+        {
+            LogList = resp.Items;
+        }
+    }
+
+    MudBlazor.Converter<DateTime?, string> ConvertDate(string format, DateTime max)
+    {
+        return new()
+            {
+                GetFunc = (e) => DateTime.TryParse(e, out DateTime data) ? data > max ? max : data : null,
+                SetFunc = (e) => e?.ToString(format) ?? string.Empty
+            };
+    }
+}

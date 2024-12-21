@@ -1,0 +1,173 @@
+﻿@page "/Examiner/CreateExam"
+@page "/Admin/CreateExam"
+<h1 style="text-align: center;">Create Exam</h1>
+<style>
+    .mud-table-cell {
+        border: none !important;
+        text-align: center;
+    }
+
+    .mud-table-head .mud-table-row .mud-table-cell {
+        border-bottom: 1px solid grey !important;
+        font-size: 1.2rem;
+    }
+
+    .mud-table {
+        box-shadow: none !important;
+    }
+
+    .mud-table-root {
+        border-collapse: separate !important;
+        border-spacing: 0 !important;
+    }
+
+    .mud-table-head .mud-table-row {
+        box-shadow: 0 5px 10px #e1e5ee;
+        position: sticky;
+        top: 0;
+        background-color: white;
+        z-index: 99;
+    }
+</style>
+<div class ="d-flex justify-content-center">
+    <div class="mt-4">
+        <div class="d-flex mb-4">
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       StartIcon="@Icons.Material.Filled.CloudUpload"
+                       OnClick="OpenImportDialogAsync">
+                Import Exam
+            </MudButton>
+
+            <MudButton Variant="Variant.Filled"
+                       Color="Color.Primary"
+                       StartIcon="@Icons.Material.Filled.Add"
+                       Class="ms-4"
+                       OnClick="NavigateToCreatePage">
+                Add Exam
+            </MudButton>
+        </div>
+
+    </div>
+</div>
+
+
+@code {
+    [CascadingParameter]
+    public MainLayout Layout { get; set; }
+
+    IList<IBrowserFile> _files = new List<IBrowserFile>();
+    private bool isAdmin { get; set; } = false;
+    private Dictionary<int, string> ColorList = new Dictionary<int, string>
+    {
+        { 1, "#D3D3D3" }, // Unassigned
+        { 2, "#87CEEB" }, // Assigned
+        { 3, "#FFD700" }, // Awaiting Lecturer Confirm
+        { 4, "#6495ED" }, // Reviewing
+        { 5, "#FF4500" }, // Error
+        { 6, "#32CD32" }, // OK
+        { 7, "#006400" }, // Completed
+        { 8, "#DC143C" }  // Discard
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        var isAuthenticated = await CustomAuthStateProvider.IsUserAuthenticated();
+
+        if (isAuthenticated)
+        {
+            var auth = await CustomAuthStateProvider.GetAuthenticationStateAsync();
+            var user = auth.User;
+            var userId = int.TryParse(user.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value, out var id) ? id : 0;
+
+            var response = await MenuService.CheckAccess(userId, 10);
+            var response2 = await MenuService.CheckAccess(userId, 21);
+            var cam = await UserService.GetByIdAsync(userId);
+            if (!response.IsSuccessful && !response2.IsSuccessful)
+            {
+                NavManager.NavigateTo("/404");
+            }
+            else
+            {
+                if (cam.Item != null && cam.Item.RoleId==1)
+                {
+                    isAdmin = true;
+                }
+                if (Layout != null)
+                {
+                    Layout.Header = "Home";
+                    Layout.HeaderLink = "/Home";
+                    Layout.SubHeader = "Create Exam";
+                    Layout.RefreshLayout();
+                }
+            }
+        }
+    }
+
+    private void NavigateToCreatePage()
+    {
+        if (isAdmin)
+        {
+            NavManager.NavigateTo("/Admin/CreateForm");
+        }
+        else
+        {
+            NavManager.NavigateTo("/Examiner/CreateForm");
+        }
+    }
+
+    private async Task OpenImportDialogAsync()
+    {
+        var options = new DialogOptions
+            {
+                CloseOnEscapeKey = true,
+                MaxWidth = MaxWidth.Small,
+                FullWidth = true,
+                BackdropClick = false,
+
+            };
+
+        var parameters = new DialogParameters<ImportExam>();
+
+        var dialog = await DialogService.ShowAsync<ImportExam>("Import Exam", parameters, options);
+
+        var result = await dialog.Result;
+
+        if (!result.Canceled)
+        {
+            dialog.Close(DialogResult.Ok(true));            
+        }
+    }
+
+    private void UploadFiles(IBrowserFile file)
+    {
+        _files.Clear();
+        _files.Add(file);
+    }
+
+   
+    private async Task ExportAllExams()
+    {
+        var response = await this.ExamService.ExportAllExams();
+
+        if (response != null && response.IsSuccessful)
+        {
+            try
+            {
+                using var stream = new MemoryStream(response.Item);
+                var fileUrl = $"data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,{Convert.ToBase64String(stream.ToArray())}";
+                await js.InvokeVoidAsync("open", fileUrl);
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Error during file download: {ex.Message}", Severity.Error);
+            }
+        }
+        else
+        {
+            Snackbar.Add("Error exporting exams.", Severity.Error);
+        }
+    }
+
+
+}

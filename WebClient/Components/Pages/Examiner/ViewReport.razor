@@ -1,0 +1,191 @@
+﻿@page "/Examiner/ReviewReport"
+<h1 style="text-align: center;">Review Report</h1>
+
+<div class="d-flex justify-content-center">
+    <div class="mt-4">
+        <div class="d-flex align-items-center flex-wrap custom-box mb-4">
+            <MudTextField @bind-Value="request.ExamCode" Label="Exam Code" Variant="Variant.Outlined" Margin="Margin.Dense" Class="me-4" Clearable></MudTextField>
+            <MudSelect @bind-Value="request.StatusId"
+                       Variant="Variant.Outlined"
+                       Label="Status"
+                       Margin="Margin.Dense"
+                       AnchorOrigin="Origin.BottomCenter"
+                       Clearable
+                       Class="me-4 col-auto">
+                @if (statusList.Count > 0)
+                {
+                    @foreach (var item in statusList)
+                    {
+                        <MudSelectItem T="int?" Value="item.ExamStatusId">@item.StatusContent</MudSelectItem>
+                    }
+                }
+            </MudSelect>
+            <MudSelect @bind-Value="request.SemesterId"
+                       Variant="Variant.Outlined"
+                       Label="Semester"
+                       Margin="Margin.Dense"
+                       AnchorOrigin="Origin.BottomCenter"
+                       Clearable
+                       Class="me-4 col-auto">
+                @if (statusList.Count > 0)
+                {
+                    @foreach (var item in semesters)
+                    {
+                        <MudSelectItem T="int?" Value="item.SemesterId">@item.SemesterName</MudSelectItem>
+                    }
+                }
+            </MudSelect>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Search" OnClick="GetData">Search</MudButton>
+        </div>
+        <div class="custom-box">
+            <div class="d-flex align-items-center justify-content-between">
+                <div>
+                    <h4>Exam List</h4>
+                </div>
+            </div>
+            <div>
+                <MudTable T="ExaminerExamResponse" Items="ExamList" FixedHeader="true" Height="@(ExamList.Count == 0 ? null : "380px")" Hover="true" HorizontalScrollbar="true" Virtualize="true">
+                    <HeaderContent>
+                        <MudTh>No</MudTh>
+                        <MudTh>Exam Code</MudTh>
+                        <MudTh>Campus</MudTh>
+                        <MudTh>Status</MudTh>
+                        <MudTh>Exam planned Date</MudTh>
+                        <MudTh>Semester</MudTh>
+                        <MudTh></MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd>@((ExamList.IndexOf(@context) + 1))</MudTd>
+                        <MudTd>@context.ExamCode</MudTd>
+                        <MudTd>@context.CampusName </MudTd>
+                        <MudTd> <label class="fw-bold" style="color:@(ColorList[context.ExamStatusId.Value])">@context.ExamStatusContent</label></MudTd>
+                        <MudTd>@(context.EstimatedTimeTest.HasValue ? context.EstimatedTimeTest.Value.ToString("yyyy-MM-dd") : "N/A")</MudTd>
+                        <MudTd>@context.SemseterName</MudTd>
+                        <MudTd>
+                            <div class="d-flex align-items-center justify-content-around">
+                                <MudButton Color="Color.Primary" Variant="Variant.Filled" OnClick="@(() => GoToDetail(context.ExamId))">Report</MudButton>
+                            </div>
+                        </MudTd>
+
+                    </RowTemplate>
+                </MudTable>
+                <div>
+                    <MudButton Variant="Variant.Filled" OnClick="ExportAllExams" Color="Color.Surface">Export All</MudButton>
+                </div>
+                @if (ExamList.Count == 0)
+                {
+                    <p class="text-center fs-6 mt-4">No Data</p>
+                }
+            </div>
+         
+        </div>
+    </div>
+</div>
+
+
+@code {
+    [CascadingParameter]
+    public MainLayout Layout { get; set; }
+
+    IList<IBrowserFile> _files = new List<IBrowserFile>();
+    @inject ISemesterService SemesterService
+    public List<ExaminerExamResponse> ExamList = new List<ExaminerExamResponse>();
+    public List<ExaminerExamResponse> assignList = new List<ExaminerExamResponse>();
+
+    public List<ExamStatus> statusList = new List<ExamStatus>();
+    public List<Semester> semesters = new List<Semester>();
+    public ExamSearchRequest request = new();
+
+    private string Mail { get; set; } = string.Empty;
+
+    private Dictionary<int, string> ColorList = new Dictionary<int, string>
+    {
+        { 1, "#D3D3D3" }, // Unassigned
+        { 2, "#87CEEB" }, // Assigned
+        { 3, "#FFD700" }, // Awaiting Lecturer Confirm
+        { 4, "#6495ED" }, // Reviewing
+        { 5, "#FF4500" }, // Error
+        { 6, "#32CD32" }, // OK
+        { 7, "#006400" }, // Completed
+        { 8, "#DC143C" }  // Discard
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        var isAuthenticated = await CustomAuthStateProvider.IsUserAuthenticated();
+
+        if (isAuthenticated)
+        {
+            var auth = await CustomAuthStateProvider.GetAuthenticationStateAsync();
+            var user = auth.User;
+            var userId = int.TryParse(user.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value, out var id) ? id : 0;
+            request.CampusId = int.TryParse(user.Claims.FirstOrDefault(c => c.Type == "CampusId")?.Value, out var campus) ? campus : 0;
+            Mail = user.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value;
+
+            var response = await MenuService.CheckAccess(userId, 14);
+
+            if (!response.IsSuccessful)
+            {
+                NavManager.NavigateTo("/404");
+            }
+            else
+            {
+                await GetData();
+                var semesterrList = await this.SemesterService.GetSemester();
+                if (semesterrList.IsSuccessful)
+                {
+                    semesters = semesterrList.Items;
+                }
+                var sList = await this.StatusService.GetStatus();
+                if (sList.IsSuccessful)
+                {
+                    statusList = sList.Items;
+                }
+
+                if (Layout != null)
+                {
+                    Layout.Header = "Home";
+                    Layout.HeaderLink = "/Home";
+                    Layout.SubHeader = "Review Report";
+                    Layout.RefreshLayout();
+                }
+            }
+        }
+    }
+
+    private async Task GetData()
+    {
+        var eList = await this.ExamService.GetExamList(request);
+        if (eList.IsSuccessful)
+        {
+            ExamList = eList.Items.Where(x => x.ExamStatusId != 2 && x.ExamStatusId != 3  && x.ExamStatusId != 1  && x.ExamStatusId != 4).ToList();
+        }
+    }
+    private async Task ExportAllExams()
+    {
+        var response = await this.ExamService.GenerateExcelTime();
+
+        if (response != null && response.IsSuccessful)
+        {
+            try
+            {
+                using var stream = new MemoryStream(response.Item);
+                var fileUrl = $"data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,{Convert.ToBase64String(stream.ToArray())}";
+                await js.InvokeVoidAsync("open", fileUrl);
+            }
+            catch (Exception ex)
+            {
+                Snackbar.Add($"Error during file download: {ex.Message}", Severity.Error);
+            }
+        }
+        else
+        {
+            Snackbar.Add("Error exporting exams.", Severity.Error);
+        }
+    }
+       public void GoToDetail(int examId)
+    {
+        NavManager.NavigateTo($"/Examiner/ReviewReport/{examId}");
+    }
+
+}

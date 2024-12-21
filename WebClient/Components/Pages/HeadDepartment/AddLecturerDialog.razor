@@ -1,0 +1,147 @@
+﻿<MudDialog>
+    <DialogContent>
+        <EditForm Model="user" OnValidSubmit="AddUser">
+            <FluentValidationValidator/>
+            <div class="mb-4 d-flex align-items-baseline">
+                <label class="col-4 text-end me-4">Email:</label>
+                <div class="me-4">
+                    <MudTextField T=string Value="user.Mail" ValueChanged="OnTextChanged" Variant="Variant.Outlined" Margin="Margin.Dense" Adornment="Adornment.End" AdornmentText="@("@fpt.edu.vn")" For="@(() => user.Mail)" />
+                </div>
+            </div>
+            <div class="mb-4 d-flex align-items-baseline">
+                <label class="col-4 text-end me-4">User Name:</label>
+                <div class="me-4">
+                    <MudTextField @bind-Value="user.FullName" Variant="Variant.Outlined" Margin="Margin.Dense" Adornment="Adornment.End" For="@(() => user.FullName)" Disabled="user.IsExist" />
+                </div>
+            </div>
+            <div class="mb-4 d-flex align-items-baseline">
+                <label class="col-4 text-end me-4">Email Fe:</label>
+                <div class="me-4">
+                    <MudTextField @bind-Value="user.MailFe" Variant="Variant.Outlined" Margin="Margin.Dense" Adornment="Adornment.End" AdornmentText="@("@fe.edu.vn")" For="@(() => user.MailFe)" Disabled="user.IsExist" />
+                </div>
+            </div>
+            <div class="mb-4 d-flex align-items-baseline">
+                <label class="col-4 text-end me-4">Phone Number:</label>
+                <div class="me-4">
+                    <MudTextField @bind-Value="user.PhoneNumber" Variant="Variant.Outlined" Margin="Margin.Dense" Adornment="Adornment.End" For="@(() => user.PhoneNumber)" Disabled="user.IsExist" />
+                </div>
+            </div>
+            @if (LecturerId != 0)
+            {
+                <div class="mb-4 d-flex align-items-center">
+                    <label class="col-4 text-end me-4">Active:</label>
+                    <div class="col-8">
+                        <MudCheckBox @bind-Value="user.IsActive" />
+                    </div>
+                </div>
+            }
+
+            <div class="d-flex justify-content-end mb-3">
+                <MudButton Color="Color.Primary" ButtonType="ButtonType.Submit" class="btn btn-block col-3 ms-4" Variant="Variant.Filled" Disabled="@_processing">
+                    @if (_processing)
+                    {
+                        <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true" />
+                        <MudText Class="ms-2">Saving</MudText>
+                    }
+                    else
+                    {
+                        <MudText>Add</MudText>
+                    }
+                </MudButton>
+                <MudButton Color="Color.Error" OnClick="Cancel" Class="col-3 btn btn-block" Variant="Variant.Outlined">Cancel</MudButton>
+            </div>
+        </EditForm>
+    </DialogContent>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private MudDialogInstance MudDialog { get; set; }
+
+    [Parameter]
+    public int SubjectId { get; set; }
+    [Parameter]
+    public int LecturerId { get; set; }
+
+    private AddLecturerSubjectRequest user = new();
+
+    private void Submit() => MudDialog.Close(DialogResult.Ok(true));
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private bool _processing = false;
+    private bool _isHaveData = false;
+
+    private int UserId { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await CustomAuthStateProvider.GetAuthenticationStateAsync();
+        var user = auth.User;
+        UserId = int.TryParse(user.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value, out var id) ? id : 0;
+
+        if (LecturerId != 0)
+        {
+            await FetchUserDetails();
+        }
+    }
+
+    private async Task AddUser()
+    {
+        _processing = true;
+
+        if (LecturerId == 0)
+        {
+            user.HeadId = UserId;
+            user.SubjectId = SubjectId;
+            var resp = await this.UserService.AddUserToSubject(user);
+
+            if (resp.IsSuccessful)
+            {
+                Submit();
+            }
+        }
+        else
+        {
+            var resp = await this.UserService.EditLecturer(user);
+
+            if (resp.IsSuccessful)
+            {
+                Submit();
+            }
+        }
+
+        _processing = false;
+    }
+
+    private async Task OnTextChanged(string value)
+    {
+        var resp = await this.UserService.GetUserByMail(value + "@fpt.edu.vn", UserId);
+        if (resp.Item != null)
+        {
+            user.IsExist = true;
+            user = resp.Item;
+        }
+        else
+        {
+            user.IsExist = false;
+            user.Mail = value;
+        }
+    }
+
+    private async Task FetchUserDetails()
+    {
+        var result = await UserService.GetByIdAsync(LecturerId);
+        if (result != null)
+        {
+            var data = new AddLecturerSubjectRequest
+                {
+                    FullName = result.Item.UserName,
+                    Mail = result.Item.Email,
+                    MailFe = result.Item.MailFe,
+                    PhoneNumber = result.Item.Phone,
+                };
+            user = data;
+        }
+    }
+}

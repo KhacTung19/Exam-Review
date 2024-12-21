@@ -1,0 +1,90 @@
+﻿<style>
+    .form-group {
+        display: flex;
+        align-items: center;
+    }
+
+    .mud-input.mud-disabled {
+        background-color: rgba(0, 0, 0, 0.1);
+        color: black;
+    }
+</style>
+
+
+<MudDialog>
+    <DialogContent>
+        <EditForm Model="facuty" OnValidSubmit="Execute">
+            <FluentValidationValidator />
+            <MudTextField @bind-Value=facuty.FacultyName Variant="Variant.Outlined" Label="Department Name" Class="mb-4" For="@(() => facuty.FacultyName)"></MudTextField>
+            <MudTextField @bind-Value=facuty.Description Variant="Variant.Outlined" Label="Department Description" Class="mb-4" For="@(() => facuty.Description)"></MudTextField>
+            <div class="d-flex justify-content-end mb-3">
+                <MudButton Color="Color.Primary" ButtonType="ButtonType.Submit" class="btn btn-block col-3 ms-4" Variant="Variant.Filled" Disabled="@_processing">
+                    @if (_processing)
+                    {
+                        <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true" />
+                        <MudText Class="ms-2">Saving</MudText>
+                    }
+                    else
+                    {
+                        <MudText>@(FacutyID == 0 ? "Add" : "Save")</MudText>
+                    }
+                </MudButton>
+                <MudButton Color="Color.Error" OnClick="Cancel" Class="col-3 btn btn-block" Variant="Variant.Outlined">Cancel</MudButton>
+            </div>
+        </EditForm>
+    </DialogContent>
+</MudDialog>
+
+
+@code {
+    [CascadingParameter]
+    private MudDialogInstance MudDialog { get; set; }
+    @inject ISemesterService SemesterService
+    [Parameter]
+    public int? FacutyID { get; set; }
+
+    FacutyRequest facuty = new FacutyRequest();
+
+    private bool _processing = false;
+
+    private void Cancel() => MudDialog.Cancel();
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (FacutyID != 0)
+        {
+            var resp = await this.FacultyService.GetFacutyByID(FacutyID.Value);
+
+            if (resp.IsSuccessful)
+            {
+                facuty = resp.Item;
+            }
+        }
+    }
+
+    public async Task Execute()
+    {
+        _processing = true;
+
+        if (FacutyID != 0)
+        {
+            var resp = await this.FacultyService.UpdateFacuty(facuty);
+
+            if (resp.IsSuccessful)
+            {
+                MudDialog.Close(DialogResult.Ok(true));
+            }
+        }
+        else
+        {
+            var resp = await this.FacultyService.AddFacuty(facuty);
+
+            if (resp.IsSuccessful)
+            {
+                MudDialog.Close(DialogResult.Ok(true));
+            }
+        }
+
+        _processing = false;
+    }
+}

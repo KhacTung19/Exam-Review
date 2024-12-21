@@ -1,0 +1,297 @@
+﻿@page "/Examiner/EditUser/{UserId:int}"
+@page "/Examiner/AddUser"
+<style>
+    .text-wrap {
+        white-space: pre-wrap; /* Cho phép xuống dòng tự động */
+        word-wrap: break-word; /* Bẻ từ nếu từ quá dài */
+        overflow-wrap: break-word; /* Dùng cho các trình duyệt hiện đại */
+        max-width: 300px; /* Giới hạn chiều rộng */
+        border: 1px solid #ddd; /* Để dễ nhìn thấy khung */
+        padding: 5px;
+        font-size: 14px;
+        line-height: 1.5; /* Tăng khoảng cách giữa các dòng */
+    }
+
+</style>
+<h1 style="text-align: center;">Manage Head Department</h1>
+<div class="d-flex justify-content-center">
+    <EditForm Model="User" OnValidSubmit="HandleValidSubmit" class="border p-4" style="width: 450px;">
+        <FluentValidationValidator />
+        <div class="mb-4 d-flex align-items-baseline">
+            <label class="col-4 text-end me-4">Email:</label>
+            <div class="col-8">
+                @if (!isAddOrEdit)
+                {
+                    <MudText>@(User.Email + "@fpt.edu.vn")</MudText>
+                }
+                else
+                {
+                    <MudTextField @bind-Value="User.Email" Variant="Variant.Outlined" Margin="Margin.Dense" Adornment="Adornment.End" AdornmentText="@("@fpt.edu.vn")" For="@(() => User.Email)" />
+                }
+            </div>
+        </div>
+
+        <div class="mb-4 d-flex align-items-baseline">
+            <label class="col-4 text-end me-4">User Name:</label>
+            <div class="col-8">
+                @if (!isAddOrEdit)
+                {
+                    <MudText>@(User.UserName)</MudText>
+                }
+                else
+                {
+                    <MudTextField @bind-Value="User.UserName" Variant="Variant.Outlined" Margin="Margin.Dense" Adornment="Adornment.End" For="@(() => User.UserName)" />
+                }
+            </div>
+        </div>
+
+        <div class="mb-4 d-flex align-items-baseline">
+            <label class="col-4 text-end me-4">Phone Number:</label>
+            <div class="col-8">
+                @if (!isAddOrEdit)
+                {
+                    <MudText>@(User.Phone)</MudText>
+                }
+                else
+                {
+                    <MudTextField @bind-Value="User.Phone" Variant="Variant.Outlined" Margin="Margin.Dense" Adornment="Adornment.End" For="@(() => User.Phone)" />
+                }
+            </div>
+        </div>
+        <div class="mb-4 d-flex align-items-baseline">
+            <label class="col-4 text-end me-4">Department:</label>
+            <div class="col-8">
+                @if (!isAddOrEdit)
+                {
+                    <MudText>@(facutyResponses.FirstOrDefault(x => x.FacultyId == User.FacultyId)?.FacultyName ?? "N/A")</MudText>
+                }
+                else
+                {
+                    <MudSelect T=int? Value="User.FacultyId" Variant="Variant.Outlined" Margin="Margin.Dense" ValueChanged="OnFacultyChange" AnchorOrigin="Origin.BottomCenter">
+                        @foreach (var item in facutyResponses)
+                        {
+                            <MudSelectItem T="int?" Value="@item.FacultyId">@item.FacultyName</MudSelectItem>
+                        }
+                    </MudSelect>
+
+                }
+            </div>
+        </div>
+        <div class="mb-4 d-flex align-items-baseline">
+            <label class="col-4 text-end me-4">Subject:</label>
+            <div class="col-8">
+                <MudSelect T="SubjectResponse"
+                           @bind-SelectedValues=@User.SubjectResponses
+                           Text="@("Number of Subject : " + User.SubjectResponses.Count())"
+                           MultiSelection="true"
+                           Variant="Variant.Outlined"
+                           Margin="Margin.Dense"
+                           AnchorOrigin="Origin.BottomCenter"
+                           Disabled=@(!isAddOrEdit)
+                           HelperText="Only display avaliable subject">
+                    @if (CurrentSubjectList.Count() > 0)
+                    {
+                        @foreach (var item in CurrentSubjectList)
+                        {
+                            <MudSelectItem T="SubjectResponse" Value="@item">@($"[{item.SubjectCode}] {item.SubjectName}")</MudSelectItem>
+                        }
+                    }
+                </MudSelect>
+                <span class="mt-2 text-wrap">@(string.Join(", ", User.SubjectResponses.Select(x => $"[{x.SubjectCode}]")))</span>
+
+            </div>
+        </div>
+        <div class="mb-4 d-flex align-items-center">
+            <label class="col-4 text-end me-4">Active:</label>
+            <div class="col-8">
+                <MudCheckBox @bind-Value="User.IsActive" Disabled="@(!isAddOrEdit )" />
+            </div>
+        </div>
+
+        <div class="d-flex justify-content-evenly">
+            @if (!isAddOrEdit)
+            {
+                <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary">Update</MudButton>
+            }
+            else
+            {
+                <MudButton ButtonType="ButtonType.Submit" Variant="Variant.Filled" Color="Color.Primary">Save</MudButton>
+            }
+            <MudButton Variant="Variant.Outlined" Color="Color.Error" OnClick="Cancel">Cancel</MudButton>
+        </div>
+    </EditForm>
+</div>
+
+
+@code {
+    [CascadingParameter]
+    public MainLayout Layout { get; set; }
+    [Parameter]
+    public int? UserId { get; set; }
+    private UserSubjectRequest User = new();
+    private List<SubjectResponse> subjectList = new();
+    private List<SubjectResponse> CurrentSubjectList = new();
+
+    private List<SubjectResponse> CurrentSelectedSubjectList = new();
+    private List<UserRole> roleList = new();
+    private List<Faculty> facutyResponses = new();
+
+    private int currentDepartment { get; set; }
+
+    private bool isAddOrEdit { get; set; } = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var isAuthenticated = await CustomAuthStateProvider.IsUserAuthenticated();
+
+        if (isAuthenticated)
+        {
+            var auth = await CustomAuthStateProvider.GetAuthenticationStateAsync();
+            var user = auth.User;
+            var userId = int.TryParse(user.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value, out var id) ? id : 0;
+            var campusId = int.TryParse(user.Claims.FirstOrDefault(c => c.Type == "CampusId")?.Value, out var cid) ? cid : 0;
+            var cam = await UserService.GetByIdAsync(userId);
+            var response = await MenuService.CheckAccess(userId, 9);
+
+            if (!response.IsSuccessful)
+            {
+                NavManager.NavigateTo("/404");
+            }
+            else
+            {
+                await GetFacutyList();
+                await GetSubjectList();
+                if (UserId != null)
+                {
+                    await FetchUserDetails();
+
+                }
+                else
+                {
+                    isAddOrEdit = true;
+                    User.CampusId = cid;
+                    User.RoleId = 3;
+                }
+
+                if (Layout != null)
+                {
+                    Layout.Header = "Home";
+                    Layout.HeaderLink = "/Home";
+                    Layout.SubHeader = "User Management";
+                    Layout.SubHeader1 = UserId != null ? "Edit User" : "Add User";
+                    Layout.RefreshLayout();
+                }
+            }
+        }
+    }
+    private void OnFacultyChange(int? value)
+    {
+        if (value != null)
+        {
+            User.FacultyId = value;
+        }
+
+        if (User.FacultyId.HasValue)
+        {
+            CurrentSubjectList = subjectList.Where(x => x.FacultyId == User.FacultyId.Value).ToList();
+            if (User.FacultyId.Value == currentDepartment)
+            {
+                User.SubjectResponses = CurrentSelectedSubjectList;
+            } else
+            {
+                User.SubjectResponses = new List<SubjectResponse>();
+            }
+        }
+        else
+        {
+            CurrentSubjectList = new List<SubjectResponse>(); // Nếu không chọn Faculty
+        }
+        StateHasChanged(); // Cập nhật giao diện
+    }
+
+    private async Task FetchUserDetails()
+    {
+        var result = await UserService.GetUserFacutyByIdAsync(UserId.Value);
+        if (result != null)
+        {
+            User = result.Item;
+            if (User.FacultyId.HasValue)
+            {
+                // Lọc danh sách môn học dựa trên FacultyId
+                CurrentSubjectList = subjectList.Where(x => x.FacultyId == User.FacultyId.Value).ToList();
+                currentDepartment = User.FacultyId.Value;
+                CurrentSelectedSubjectList = User.SubjectResponses.ToList();
+            }
+            else
+            {
+                CurrentSubjectList = new List<SubjectResponse>(); // Nếu không chọn Faculty
+            }
+        }
+    }
+
+    private async Task GetFacutyList()
+    {
+        var result = await FacultyService.GetFaculties();
+        if (result != null)
+        {
+            facutyResponses = result.Items;
+        }
+    }
+
+    private async Task HandleValidSubmit()
+    {
+        RequestResponse resp = new();
+        var auth = await CustomAuthStateProvider.GetAuthenticationStateAsync();
+        var userId = int.TryParse(auth.User.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value, out var id) ? id : 0;
+        var cam = await UserService.GetByIdAsync(userId);
+        if (cam.IsSuccessful)
+        {
+            if (cam.Item != null)
+            {
+                User.CampusId = cam.Item.CampusId;
+            }
+        }
+        if (UserId != null && isAddOrEdit == false)
+        {
+            isAddOrEdit = true;
+        }
+        else if (UserId != null && isAddOrEdit == true)
+        {
+            resp = await UserService.ExaminerUpdateUserAsync(User);
+        }
+        else
+        {
+            resp = await UserService.CreateHeadAsync(User);
+        }
+        if (resp.IsSuccessful)
+        {
+            NavManager.NavigateTo("/Examiner/HeadDeparmentManagement");
+        }
+    }
+    private async Task GetSubjectList()
+    {
+        var result = await SubjectService.GetSubjects();
+        if (result != null)
+        {
+            subjectList = result.Items;
+
+            if (User.FacultyId.HasValue)
+            {
+                CurrentSubjectList = subjectList.Where(x => x.FacultyId == User.FacultyId.Value).ToList();
+            }
+        }
+    }
+
+    private void Cancel()
+    {
+        if (UserId != null && isAddOrEdit == true)
+        {
+            isAddOrEdit = false;
+        }
+        else
+        {
+            NavManager.NavigateTo("/HeadDepartment/LecturerManagement");
+        }
+    }
+}
+

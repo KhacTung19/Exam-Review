@@ -1,0 +1,280 @@
+﻿@page "/HeadDepartment/SubjectList"
+@page "/Developer/SubjectList"
+
+@if (!isProgramer)
+{
+    <h1 style="text-align: center;" class="mb-4">Subject and Lecturer Management</h1>
+}else{
+    <h1 style="text-align: center;" class="mb-4">Subject Management</h1>
+}
+<div class="d-flex justify-content-center">
+    <div class="mt-4">
+        <div class="custom-box">
+            <div class="d-flex align-items-center justify-content-between mb-4">
+                @if (!isProgramer)
+                {
+                    <div class="me-4">
+                        <h4>Department : @Response.DepartmentName</h4>
+                    </div>
+                }
+                <div>
+                    @if (!isProgramer)
+                    {
+                         <MudButton StartIcon="@Icons.Material.Filled.Add" Color="Color.Tertiary" Variant="Variant.Filled" OnClick="AddSubject">Add Subject</MudButton>
+                        <MudButton Variant="Variant.Filled"
+                                   Color="Color.Primary"
+                                   StartIcon="@Icons.Material.Filled.CloudUpload"
+                                   OnClick="OpenImportDialogAsync">
+                            Import User
+                        </MudButton>
+                    }
+                    else
+                    {
+                        <MudButton StartIcon="@Icons.Material.Filled.Add" Color="Color.Tertiary" Variant="Variant.Filled" OnClick="AddSubjectToProgramer">Add Subject</MudButton>
+
+                    }
+                   
+                </div>
+            </div>
+            <div>
+                <MudTable Items="Response.SubjectsList" FixedHeader="true" Height="@(Response.SubjectsList.Count == 0 ? null : "400px")" Hover="true">
+                    <HeaderContent>
+                        <MudTh>#</MudTh>
+                        <MudTh>Subject Code</MudTh>
+                        <MudTh>Subject Name</MudTh>
+                        @if (!isProgramer)
+                        {
+                            <MudTh>Lecturer List</MudTh>
+                        }else{
+                            <MudTh>Action</MudTh>
+                        }
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd>@((Response.SubjectsList.IndexOf(@context) + 1))</MudTd>
+                        <MudTd>@context.SubjectCode</MudTd>
+                        <MudTd>@context.SubjectName</MudTd>
+                        <MudTd>
+                            @if (!isProgramer)
+                            {
+                                <div class="d-flex align-items-center justify-content-around">
+                                    <MudButton StartIcon="@Icons.Material.Filled.AssignmentInd" Color="Color.Primary" Variant="Variant.Filled" OnClick="@(() => ShowLecturerList(context.SubjectId,context.SubjectCode))">Show</MudButton>
+                                </div>
+                            
+                            }else{
+                            <MudButton StartIcon="@Icons.Material.Filled.Delete" Color="Color.Error" Variant="Variant.Filled" @onclick="() => RemoveSubject(context.SubjectId)"></MudButton>
+                            }
+                        </MudTd>
+                
+
+                    </RowTemplate>
+                </MudTable>
+                @if (Response.SubjectsList.Count == 0 || Response.SubjectsList == null)
+                {
+                    <p class="text-center  fs-6 mt-4">No Data</p>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+
+@code {
+    [CascadingParameter]
+    public MainLayout Layout { get; set; }
+
+    public HeadSubjectRepsonse Response = new();
+
+    private int UserId { get; set; }
+    private int? CampusID { get; set; }
+    private bool isProgramer { get; set; } = false;
+    protected override async Task OnInitializedAsync()
+    {
+        var isAuthenticated = await CustomAuthStateProvider.IsUserAuthenticated();
+
+        if (isAuthenticated)
+        {
+            var auth = await CustomAuthStateProvider.GetAuthenticationStateAsync();
+            var user = auth.User;
+            UserId = int.TryParse(user.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value, out var id) ? id : 0;
+            var response = await MenuService.CheckAccess(UserId, 15);
+            var cam = await UserService.GetByIdAsync(UserId);
+            var response2 = await MenuService.CheckAccess(UserId, 19);
+            if (!response.IsSuccessful && !response2.IsSuccessful)
+            {
+                NavManager.NavigateTo("/404");
+            }
+            else
+            {
+                await GetSubject();
+                if (cam.Item != null && cam.Item.RoleId==5)
+                {
+                    isProgramer = true;
+                }
+                if (Layout != null)
+                {
+                    Layout.Header = "Home";
+                    Layout.HeaderLink = "/Home";
+                    Layout.SubHeader = "Subject and Lecturer Management";
+                    Layout.RefreshLayout();
+                }
+            }
+        }
+    }
+
+    private async Task OpenImportDialogAsync()
+    {
+        var options = new DialogOptions
+            {
+                CloseOnEscapeKey = true,
+                MaxWidth = MaxWidth.Small,
+                FullWidth = true,
+                BackdropClick = false,
+
+            };
+
+        var parameters = new DialogParameters<ImportUser>();
+
+        var dialog = await DialogService.ShowAsync<ImportUser>("Import User", parameters, options);
+
+        var result = await dialog.Result;
+
+        if (!result.Canceled)
+        {
+            dialog.Close(DialogResult.Ok(true));
+        }
+
+    }
+
+    public async Task ShowLecturerList(int subjectId,string subjectCode)
+    {
+        var options = new DialogOptions
+            {
+                CloseOnEscapeKey = true,
+                MaxWidth = MaxWidth.Large,
+                FullWidth = true,
+                BackdropClick = false,
+            };
+
+        var parameters = new DialogParameters<LecturerList>
+        {
+            {x => x.SubjectId,subjectId}
+        };
+
+        var dialog = await DialogService.ShowAsync<LecturerList>($"List of lecturer teaching {subjectCode}", parameters, options);
+
+        var result = await dialog.Result;
+
+        if (!result.Canceled)
+        {
+        }
+    }
+
+    public async Task RemoveSubject(int subjectId)
+    {
+        var auth = await CustomAuthStateProvider.GetAuthenticationStateAsync();
+        var user = auth.User;
+        int UserID = int.TryParse(user.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value, out var id) ? id : 0;
+        var options = new DialogOptions
+            {
+                CloseOnEscapeKey = true,
+                MaxWidth = MaxWidth.Small,
+                FullWidth = true,
+                BackdropClick = false,
+            };
+
+        var parameters = new DialogParameters<Dialog>
+        {
+            { x => x.Content, "Are you sure want to remove subject?" },
+            { x => x.BtnTextConfirm, "Remove" },
+            { x => x.BtnTextCancel, "Cancel" },
+        };
+
+        var dialog = await DialogService.ShowAsync<Dialog>("Remove ", parameters, options);
+
+        var result = await dialog.Result;
+
+        if (!result.Canceled)
+        {
+            var resp = await this.UserService.RemoveLecture(UserID, subjectId);
+
+            if (resp.IsSuccessful)
+            {
+                await GetSubject();
+            }
+        }
+    }
+    public async Task AddSubjectToProgramer()
+    {
+        var auth = await CustomAuthStateProvider.GetAuthenticationStateAsync();
+        var user = auth.User;
+        
+        var req = new SubjectDepartmentRequest
+            {
+                SubjectId = 0,
+                UserID = int.TryParse(user.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value, out var id) ? id : 0
+            };
+
+        var options = new DialogOptions
+            {
+                CloseOnEscapeKey = true,
+                MaxWidth = MaxWidth.Small,
+                BackdropClick = false,
+            };
+
+        var parameters = new DialogParameters<AddSubjectDialog>
+        {
+            {x => x.SubjectList,Response.AddSubjectsList},
+            {x => x.request,req}
+        };
+
+        var dialog = await DialogService.ShowAsync<AddSubjectDialog>($"Add Subject to your Department", parameters, options);
+
+        var result = await dialog.Result;
+
+        if (!result.Canceled)
+        {
+            await GetSubject();
+        }
+    }
+
+    public async Task AddSubject()
+    {
+        var req = new SubjectDepartmentRequest
+            {
+                DepartmentId = Response.DepartmentId.Value,
+                SubjectId = 0
+            };
+
+        var options = new DialogOptions
+            {
+                CloseOnEscapeKey = true,
+                MaxWidth = MaxWidth.Small,
+                BackdropClick = false,
+            };
+
+        var parameters = new DialogParameters<AddSubjectDialog>
+        {
+            {x => x.SubjectList,Response.AddSubjectsList},
+            {x => x.request,req}
+        };
+
+        var dialog = await DialogService.ShowAsync<AddSubjectDialog>($"Add Subject to your Department", parameters, options);
+
+        var result = await dialog.Result;
+
+        if (!result.Canceled)
+        {
+            await GetSubject();
+        }
+    }
+
+    public async Task GetSubject()
+    {
+        var response = await SubjectService.GetHeadSubject(UserId);
+        if (response.IsSuccessful)
+        {
+            Response = response.Item;
+        }
+    }
+
+}
